@@ -1,14 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:musiz_player/generated/l10n.dart';
+import 'package:musiz_player/components/search_tile.dart';
 import 'package:musiz_player/ui/text_styles.dart';
 import 'package:musiz_player/utils/downlod.dart';
 
-class DownloadScreen extends StatelessWidget {
-  const DownloadScreen({super.key});
+import '../generated/l10n.dart';
+
+class DownloadsScreen extends StatelessWidget {
+  const DownloadsScreen({super.key});
 
   Future<bool> exist(String path, String k) async {
     File file = File(path);

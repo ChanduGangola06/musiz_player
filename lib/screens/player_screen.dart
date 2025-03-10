@@ -3,29 +3,36 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:eva_icons_flutter/eva_icons_flutter.dart';
 import 'package:flip_card/flip_card.dart';
 import 'package:flip_card/flip_card_controller.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-import 'package:flutter_lyric/lyric_ui/ui_netease.dart';
-import 'package:flutter_lyric/lyrics_model_builder.dart';
+import 'package:flutter_lyric/lyrics_reader.dart';
 import 'package:flutter_lyric/lyrics_reader_model.dart';
-import 'package:flutter_lyric/lyrics_reader_widget.dart';
+import 'package:flutter_progress_status/flutter_progress_status.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:musiz_player/api/image_resolution_modifier.dart';
+import 'package:musiz_player/components/play_button.dart';
+import 'package:musiz_player/components/queue_list.dart';
 import 'package:musiz_player/generated/l10n.dart';
 import 'package:musiz_player/providers/media_manager.dart';
+import 'package:musiz_player/ui/colors.dart';
 import 'package:musiz_player/ui/text_styles.dart';
+import 'package:musiz_player/utils/downlod.dart';
 import 'package:musiz_player/utils/enums.dart';
+import 'package:musiz_player/utils/option_menu.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:provider/provider.dart';
 import 'package:sliding_up_panel/sliding_up_panel.dart';
 
+import 'settings/equalizer_screen.dart';
+
 class PlayerScreen extends StatefulWidget {
-  final double? width;
   const PlayerScreen({super.key, this.width});
+  final double? width;
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -40,7 +47,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Uri? arturi;
   Color? color;
   late List<Map<String, dynamic>> menuItems;
-
   @override
   void initState() {
     super.initState();
@@ -70,8 +76,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ? palette?.darkVibrantColor?.color
             : palette?.lightVibrantColor?.color) ??
         Theme.of(context).colorScheme.primary;
-    // ignore: deprecated_member_use
 
+    // ignore: deprecated_member_use
     return WillPopScope(
       onWillPop: () async {
         if (panelController.isPanelOpen) {
@@ -200,23 +206,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 }
 
-class Artwork extends StatefulWidget {
+class ArtWork extends StatefulWidget {
+  const ArtWork({
+    required this.controller,
+    required this.width,
+    required this.song,
+    super.key,
+  });
+
   final FlipCardController controller;
   final MediaItem? song;
   final double width;
 
-  const Artwork({
-    super.key,
-    required this.controller,
-    this.song,
-    required this.width,
-  });
-
   @override
-  State<Artwork> createState() => _ArtworkState();
+  State<ArtWork> createState() => _ArtWorkState();
 }
 
-class _ArtworkState extends State<Artwork> {
+class _ArtWorkState extends State<ArtWork> {
   bool fetchedLyrics = false;
   bool flipped = false;
 
@@ -426,5 +432,242 @@ class _ArtworkState extends State<Artwork> {
             });
           }
         });
+  }
+}
+
+class NameAndControls extends StatefulWidget {
+  const NameAndControls({
+    required this.height,
+    required this.width,
+    required this.song,
+    this.panelController,
+    super.key,
+  });
+  final double height;
+  final double width;
+  final MediaItem? song;
+  final PanelController? panelController;
+
+  @override
+  State<NameAndControls> createState() => _NameAndControlsState();
+}
+
+class _NameAndControlsState extends State<NameAndControls> {
+  @override
+  Widget build(BuildContext context) {
+    MediaManager mediaManager = context.watch<MediaManager>();
+    return SizedBox(
+      height: widget.height,
+      width: widget.width,
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  children: [
+                    Hero(
+                      tag: "playerTitle",
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Text(
+                          widget.song?.title ?? 'Title',
+                          style: bigTextStyle(context, bold: true),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    Hero(
+                      tag: "playerSubtitle",
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Text(
+                          widget.song?.artist ?? 'Artists',
+                          style: smallTextStyle(context),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  children: [
+                    ProgressBar(
+                      progress: mediaManager.progressBarState.current,
+                      total: mediaManager.progressBarState.total,
+                      buffered: mediaManager.progressBarState.buffered,
+                      barHeight: 3,
+                      thumbRadius: 5,
+                      timeLabelTextStyle: smallTextStyle(context),
+                      baseBarColor: smallTextStyle(
+                        context,
+                      ).color!.withOpacity(0.3),
+                      onSeek: (value) => mediaManager.seek(value),
+                    ),
+                    Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              mediaManager.shuffle();
+                            },
+                            icon: Icon(
+                              Iconsax.shuffle,
+                              color:
+                                  mediaManager.isShuffleModeEnabled
+                                      ? Theme.of(context).primaryColor
+                                      : null,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              mediaManager.previous();
+                            },
+                            icon: const Icon(Iconsax.previous),
+                          ),
+                          const Hero(
+                            tag: "playerPlayButton",
+                            child: PlayButton(size: 40),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              mediaManager.next();
+                            },
+                            icon: const Icon(Iconsax.next),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              mediaManager.loop();
+                            },
+                            icon: Icon(
+                              mediaManager.loopState == LoopState.off
+                                  ? Iconsax.repeate_music
+                                  : mediaManager.loopState == LoopState.all
+                                  ? Iconsax.repeate_music5
+                                  : Iconsax.repeate_one,
+                              color:
+                                  mediaManager.loopState == LoopState.off
+                                      ? null
+                                      : Theme.of(context).primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                widget.song == null
+                    ? const SizedBox()
+                    : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ValueListenableBuilder(
+                          valueListenable: Hive.box('downloads').listenable(),
+                          builder: (context, box, child) {
+                            Map? item = box.get(widget.song?.id);
+
+                            return item != null
+                                ? item['status'] == 'pending'
+                                    ? ProgressStatus(
+                                      radius: 20,
+                                      strokeWidth: 3,
+                                      fillValue: item['progress'] * 100,
+                                      fillColor:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.inversePrimary,
+                                    )
+                                    : IconButton(
+                                      onPressed: () {},
+                                      icon: const Icon(
+                                        EvaIcons.checkmarkCircle,
+                                      ),
+                                      iconSize: 30,
+                                    )
+                                : IconButton(
+                                  onPressed: () {
+                                    download(widget.song!);
+                                  },
+                                  icon: const Icon(EvaIcons.download),
+                                );
+                          },
+                        ),
+                        StreamBuilder(
+                          stream: Hive.box(
+                            'favorites',
+                          ).watch(key: widget.song?.id),
+                          builder: (context, snapshot) {
+                            return IconButton(
+                              onPressed:
+                                  () => togglefavorite(
+                                    mediaManager.currentSong!.extras!,
+                                  ),
+                              icon: Icon(
+                                isfavorite(mediaManager.currentSong!.id)
+                                    ? EvaIcons.heart
+                                    : EvaIcons.heartOutline,
+                              ),
+                              iconSize: 30,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                const SizedBox(height: 76),
+              ],
+            ),
+          ),
+          widget.song == null
+              ? const SizedBox.shrink()
+              : SlidingUpPanel(
+                controller: widget.panelController,
+                color: Theme.of(context).scaffoldBackgroundColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+                minHeight: 55 + MediaQuery.of(context).padding.bottom,
+                header: SafeArea(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                      ),
+                    ),
+                    width: widget.width,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          height: 5,
+                          width: 50,
+                          decoration: BoxDecoration(
+                            color: greyColor,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text("Next Up", style: textStyle(context, bold: true)),
+                      ],
+                    ),
+                  ),
+                ),
+                panel: QueueList(width: widget.width),
+              ),
+        ],
+      ),
+    );
   }
 }
